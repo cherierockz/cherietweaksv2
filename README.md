@@ -1,2 +1,5 @@
-# cherietweaksv2
-cherie's tweaker is home to over 30+ windows 11 tweaking commands, windows 11 comes with many junk apps that eat up the ram in your computer.. user my tweaker/spyblocker to fix that!
+OWNED ENTIRELY BY CHERIE {CHERIEROCKZ ON ALL PLATFORMS FOR ANY INQUIRES} IF THIS PROGAM SO HAPPENS TO UNINSTALL ANY OF YOUR WANTED APPS THAT IS A USER ERROR AND NOT A CHERIETWEAKERV2 ERROR USE CTV2 AT YOUR OWN RISK
+
+CURRENT CONTACTS: @cherierockz on discord @cherierockz on tiktok
+
+CHERETWEAKERV1 HAS ENDED ITS SUPPORT.
