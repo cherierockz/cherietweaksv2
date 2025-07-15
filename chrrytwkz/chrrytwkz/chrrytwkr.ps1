@@ -2,7 +2,7 @@ function Red($msg) { Write-Host $msg -ForegroundColor Red }
 function Pause { Red "`nPress Enter to continue..."; [void][System.Console]::ReadLine() }
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { Red "ERROR: Run as admin!"; Pause; exit }
 
-# ASCII Banner
+
 Red ""
 Red "_________   ___ ________________________.___________________________      _____________   _____   ____  __.  _________ ____   ____________  "
 Red "\_   ___ \ /   |   \_   _____/\______   \   \_   _____/\__    ___/  \    /  \_   _____/  /  _  \ |    |/ _| /   _____/ \   \ /   /\_____  \ "
@@ -433,7 +433,7 @@ do {
         & $tweaks[[int]$input-1].a
     }
     else {
-        # Search mode
+   
         $matches = @()
         for ($i=0; $i -lt $tweaks.Count; $i++) {
             if ($tweaks[$i].n -like "*$input*") { $matches += [PSCustomObject]@{ Index = $i+1; Name = $tweaks[$i].n } }
