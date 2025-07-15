@@ -1,448 +1,365 @@
-function Red($msg) { Write-Host $msg -ForegroundColor Red }
-function Pause { Red "`nPress Enter to continue..."; [void][System.Console]::ReadLine() }
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { Red "ERROR: Run as admin!"; Pause; exit }
+#Requires -RunAsAdministrator
+$ErrorActionPreference = "Stop"
+
+# Configuration
+$logPath = "$env:ProgramData\CherieTweaker.log"
+$backupDir = "$env:ProgramData\CherieTweaker\Backups"
+$animationDuration = 3
+
+# P/Invoke declaration for animation disable
+$Signature = @"
+[DllImport("user32.dll", EntryPoint = "SystemParametersInfo")]
+public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, uint pvParam, uint fWinIni);
+"@
+$SystemParametersInfo = Add-Type -MemberDefinition $Signature -Name "Win32SystemParametersInfo" -Namespace Win32Functions -PassThru
+
+# Initialize logging
+function Log($message, $type = "INFO") {
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$timestamp] [$type] $message"
+    Add-Content -Path $logPath -Value $logEntry
+}
+
+try {
+    # Ensure backup directory exists
+    if (-not (Test-Path $backupDir)) { New-Item -ItemType Directory -Path $backupDir | Out-Null }
+    
+    # Clear existing log
+    if (Test-Path $logPath) { Clear-Content $logPath }
+    
+    Log "CherieTweaker V2.1 started at $(Get-Date)"
+    Log "System Information: $((Get-WmiObject Win32_OperatingSystem).Caption)"
+}
+catch { Write-Host "Initialization error: $_" -ForegroundColor Red }
 
 
-Red ""
-Red "_________   ___ ________________________.___________________________      _____________   _____   ____  __.  _________ ____   ____________  "
-Red "\_   ___ \ /   |   \_   _____/\______   \   \_   _____/\__    ___/  \    /  \_   _____/  /  _  \ |    |/ _| /   _____/ \   \ /   /\_____  \ "
-Red "/    \  \//    ~    \    __)_  |       _/   ||    __)_   |    |  \   \/\/   /|    __)_  /  /_\  \|      <   \_____  \   \   Y   /  /  ____/ "
-Red "\     \___\    Y    /        \ |    |   \   ||        \  |    |   \        / |        \/    |    \    |  \  /        \   \     /  /       \ "
-Red " \______  /\___|_  /_______  / |____|_  /___/_______  /  |____|    \__/\  / /_______  /\____|__  /____|__ \/_______  /    \___/   \_______ \"
-Red "        \/       \/        \/         \/            \/                  \/          \/         \/        \/        \/                     \/"
-Red ""
-Red "CHERIETWEAKER V2 - SELECT A TWEAK TO RUN"
-Red "DEVELOPED BY CHERIEROCKZ"
-Red "================================================================================"
-Red ""
+function Show-Header {
+    Clear-Host
+    Write-Host ""
+    Write-Host "_________   ___ ________________________.___________________________      _____________   _____   ____  __.  _________ ____   ____________  " -ForegroundColor Red
+    Write-Host "\_   ___ \ /   |   \_   _____/\______   \   \_   _____/\__    ___/  \    /  \_   _____/  /  _  \ |    |/ _| /   _____/ \   \ /   /\_____  \ " -ForegroundColor Red
+    Write-Host "/    \  \//    ~    \    __)_  |       _/   ||    __)_   |    |  \   \/\/   /|    __)_  /  /_\  \|      <   \_____  \   \   Y   /  /  ____/ " -ForegroundColor Red
+    Write-Host "\     \___\    Y    /        \ |    |   \   ||        \  |    |   \        / |        \/    |    \    |  \  /        \   \     /  /       \ " -ForegroundColor Red
+    Write-Host " \______  /\___|_  /_______  / |____|_  /___/_______  /  |____|    \__/\  / /_______  /\____|__  /____|__ \/_______  /    \___/   \_______ \" -ForegroundColor Red
+    Write-Host "        \/       \/        \/         \/            \/                  \/          \/         \/        \/        \/                     \/" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "CHERIETWEAKER V2.1 - SYSTEM OPTIMIZATION SUITE" -ForegroundColor Red
+    Write-Host "DEVELOPED BY CHERIEROCKZ | $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Red
+    Write-Host "================================================================================" -ForegroundColor Red
+    Write-Host ""
+}
+
+function Show-BinaryAnimation {
+    $endTime = (Get-Date).AddSeconds($animationDuration)
+    $colors = @('DarkGreen', 'Green', 'DarkCyan', 'Cyan')
+    
+    while ((Get-Date) -lt $endTime) {
+        Clear-Host
+        for ($i = 0; $i -lt 15; $i++) {
+            $line = -join (1..80 | ForEach-Object { 
+                if ((Get-Random) -gt 0.5) { '1' } else { '0' } 
+            })
+            $color = $colors | Get-Random
+            Write-Host $line -ForegroundColor $color
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    Clear-Host
+}
+
+
+function Backup-Registry([string]$path) {
+    $regPath = $path -replace "^HKLM:\\", "HKEY_LOCAL_MACHINE\" `
+                     -replace "^HKCU:\\", "HKEY_CURRENT_USER\"
+    $backupFile = Join-Path $backupDir "registry_$(Get-Date -Format 'yyyyMMdd_HHmmss').reg"
+    reg export $regPath $backupFile /y 2>&1 | Out-Null
+    Log "Backed up registry: $path -> $backupFile"
+    return $backupFile
+}
+
+function Confirm-Action($action) {
+    $choice = Read-Host "`n$action (Y/N)?"
+    return $choice -in 'Y','y'
+}
+
 
 $tweaks = @(
-@{
-    n = 'Remove OneDrive'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.OneDrive' -ErrorAction SilentlyContinue
-        if ($p) {
-            Red 'Uninstalling OneDrive...'
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
+    
+    @{
+        Name = "Disable Telemetry Services"
+        Category = "System Performance"
+        Action = {
+            $services = @("DiagTrack", "dmwappushservice", "DPS")
+            foreach ($svc in $services) {
+                try {
+                    if ((Get-Service $svc -ErrorAction SilentlyContinue).Status -ne 'Stopped') {
+                        Stop-Service $svc -Force
+                        Set-Service $svc -StartupType Disabled
+                        Log "Disabled service: $svc"
+                    }
+                } catch { Log "Error disabling $svc: $_" "ERROR" }
+            }
+            
+            $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
+            if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+            Set-ItemProperty -Path $regPath -Name "AllowTelemetry" -Value 0 -Type DWord
         }
-        else {
-            Red 'NOTHING TO DELETE: OneDrive'
+    },
+    
+    @{
+        Name = "Optimize Power Plan"
+        Category = "System Performance"
+        Action = {
+            powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  
+            powercfg /h off
+            Log "Optimized power settings"
         }
-    }
-},
-@{
-    n = 'Disable Cortana'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.549981C3F5F10' -ErrorAction SilentlyContinue
-        if ($p) {
-            Red 'Disabling Cortana...'
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
+    },
+    
+
+    @{
+        Name = "Disable Activity History"
+        Category = "Privacy & Security"
+        Action = {
+            $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
+            if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+            Set-ItemProperty -Path $regPath -Name "EnableActivityFeed" -Value 0 -Type DWord
+            Set-ItemProperty -Path $regPath -Name "PublishUserActivities" -Value 0 -Type DWord
+            Log "Disabled activity history"
         }
-        else {
-            Red 'NOTHING TO DELETE: Cortana'
+    },
+    
+    @{
+        Name = "Disable Location Tracking"
+        Category = "Privacy & Security"
+        Action = {
+            $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location"
+            if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+            Set-ItemProperty -Path $regPath -Name "Value" -Value "Deny" -Type String
+            Log "Disabled location tracking"
         }
-    }
-},
-@{
-    n = 'Disable Telemetry (DiagTrack)'
-    a = {
-        try {
-            $svc = Get-Service -Name 'DiagTrack' -ErrorAction SilentlyContinue
-            if ($svc -and $svc.Status -ne 'Stopped') {
-                Set-Service 'DiagTrack' -StartupType Disabled -ErrorAction SilentlyContinue
-                Stop-Service 'DiagTrack' -Force -ErrorAction SilentlyContinue
-                Red 'Telemetry Disabled'
-            } else { Red 'NOTHING TO DISABLE: DiagTrack' }
-        } catch { Red 'NOTHING TO DISABLE: DiagTrack' }
-    }
-},
-@{
-    n = 'Clear Temp Files'
-    a = {
-        $files = Get-ChildItem "$env:TEMP" -Force -ErrorAction SilentlyContinue
-        if ($files.Count -gt 0) {
-            Remove-Item "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
-            Red 'Temp files deleted'
-        } else { Red 'NOTHING TO DELETE: Temp files' }
-    }
-},
-@{
-    n = 'Empty Recycle Bin'
-    a = {
-        try {
-            $count = (Get-ChildItem "Shell:RecycleBinFolder" -ErrorAction SilentlyContinue).Count
-            if ($count -gt 0) {
-                Clear-RecycleBin -Force -ErrorAction SilentlyContinue
-                Red 'Recycle Bin emptied'
-            } else { Red 'NOTHING TO DELETE: Recycle Bin' }
-        } catch { Red 'NOTHING TO DELETE: Recycle Bin' }
-    }
-},
-@{
-    n = 'Disable Xbox GameBar'
-    a = {
-        $p = Get-AppxPackage -Name '*XboxGameOverlay*' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Xbox GameBar disabled'
-        }
-        else { Red 'NOTHING TO DELETE: Xbox GameBar' }
-    }
-},
-@{
-    n = 'Remove PeopleBar'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.People' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'PeopleBar removed'
-        }
-        else { Red 'NOTHING TO DELETE: PeopleBar' }
-    }
-},
-@{
-    n = 'Remove Skype'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.SkypeApp' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Skype removed'
-        }
-        else { Red 'NOTHING TO DELETE: Skype' }
-    }
-},
-@{
-    n = 'Remove Movies & TV'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.ZuneVideo' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Movies & TV removed'
-        }
-        else { Red 'NOTHING TO DELETE: Movies & TV' }
-    }
-},
-@{
-    n = 'Remove Groove Music'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.ZuneMusic' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Groove Music removed'
-        }
-        else { Red 'NOTHING TO DELETE: Groove Music' }
-    }
-},
-@{
-    n = 'Remove Alarms & Clock'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.WindowsAlarms' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Alarms & Clock removed'
-        }
-        else { Red 'NOTHING TO DELETE: Alarms & Clock' }
-    }
-},
-@{
-    n = 'Remove Maps'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.WindowsMaps' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Maps removed'
-        }
-        else { Red 'NOTHING TO DELETE: Maps' }
-    }
-},
-@{
-    n = 'Remove Camera'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.WindowsCamera' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Camera removed'
-        }
-        else { Red 'NOTHING TO DELETE: Camera' }
-    }
-},
-@{
-    n = 'Remove News & Interests'
-    a = {
-        $reg="HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds"
-        try {
-            Set-ItemProperty -Path $reg -Name ShellFeedsTaskbarViewMode -Value 2 -ErrorAction SilentlyContinue
-            Red 'News & Interests removed'
-        } catch { Red 'NOTHING TO DISABLE: News & Interests' }
-    }
-},
-@{
-    n = 'Remove Solitaire Collection'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.MicrosoftSolitaireCollection' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Solitaire removed'
-        }
-        else { Red 'NOTHING TO DELETE: Solitaire' }
-    }
-},
-@{
-    n = 'Remove Candy Crush'
-    a = {
-        $p = Get-AppxPackage -Name '*CandyCrush*' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Candy Crush removed'
-        }
-        else { Red 'NOTHING TO DELETE: Candy Crush' }
-    }
-},
-@{
-    n = 'Remove Clipchamp'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.Clipchamp' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Clipchamp removed'
-        }
-        else { Red 'NOTHING TO DELETE: Clipchamp' }
-    }
-},
-@{
-    n = 'Remove Your Phone'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.YourPhone' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Your Phone removed'
-        }
-        else { Red 'NOTHING TO DELETE: Your Phone' }
-    }
-},
-@{
-    n = 'Remove Get Started'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.Getstarted' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Get Started removed'
-        }
-        else { Red 'NOTHING TO DELETE: Get Started' }
-    }
-},
-@{
-    n = 'Remove Weather'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.BingWeather' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Weather removed'
-        }
-        else { Red 'NOTHING TO DELETE: Weather' }
-    }
-},
-@{
-    n = 'Remove Feedback Hub'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.WindowsFeedbackHub' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Feedback Hub removed'
-        }
-        else { Red 'NOTHING TO DELETE: Feedback Hub' }
-    }
-},
-@{
-    n = 'Remove 3D Viewer'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.Microsoft3DViewer' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red '3D Viewer removed'
-        }
-        else { Red 'NOTHING TO DELETE: 3D Viewer' }
-    }
-},
-@{
-    n = 'Remove Paint 3D'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.MSPaint' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Paint 3D removed'
-        }
-        else { Red 'NOTHING TO DELETE: Paint 3D' }
-    }
-},
-@{
-    n = 'Disable Windows Search'
-    a = {
-        try {
-            $svc = Get-Service -Name 'WSearch' -ErrorAction SilentlyContinue
-            if ($svc -and $svc.Status -ne 'Stopped') {
-                Stop-Service WSearch -Force -ErrorAction SilentlyContinue
-                Set-Service WSearch -StartupType Disabled -ErrorAction SilentlyContinue
-                Red 'Windows Search disabled'
-            } else { Red 'NOTHING TO DISABLE: Windows Search' }
-        } catch { Red 'NOTHING TO DISABLE: Windows Search' }
-    }
-},
-@{
-    n = 'Disable SmartScreen'
-    a = {
-        $reg = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer"
-        try {
-            $current = (Get-ItemProperty -Path $reg -Name SmartScreenEnabled -ErrorAction SilentlyContinue).SmartScreenEnabled
-            if ($current -ne "Off") {
-                Set-ItemProperty -Path $reg -Name SmartScreenEnabled -Value "Off"
-                Red 'SmartScreen disabled'
-            } else { Red 'NOTHING TO DISABLE: SmartScreen' }
-        } catch { Red 'NOTHING TO DISABLE: SmartScreen' }
-    }
-},
-@{
-    n = 'Disable Location'
-    a = {
-        $reg = "HKLM:\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration"
-        try {
-            $current = (Get-ItemProperty -Path $reg -Name Status -ErrorAction SilentlyContinue).Status
-            if ($current -ne 0) {
-                Set-ItemProperty -Path $reg -Name Status -Value 0
-                Red 'Location disabled'
-            } else { Red 'NOTHING TO DISABLE: Location' }
-        } catch { Red 'NOTHING TO DISABLE: Location' }
-    }
-},
-@{
-    n = 'Disable Error Reporting'
-    a = {
-        try {
-            $svc = Get-Service -Name 'WerSvc' -ErrorAction SilentlyContinue
-            if ($svc -and $svc.Status -ne 'Stopped') {
-                Stop-Service WerSvc -Force -ErrorAction SilentlyContinue
-                Set-Service WerSvc -StartupType Disabled -ErrorAction SilentlyContinue
-                Red 'Error Reporting disabled'
-            } else { Red 'NOTHING TO DISABLE: WerSvc' }
-        } catch { Red 'NOTHING TO DISABLE: WerSvc' }
-    }
-},
-@{
-    n = 'Disable Meet Now'
-    a = {
-        $p = Get-AppxPackage -Name 'Microsoft.MicrosoftMeetings' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Meet Now removed'
-        }
-        else { Red 'NOTHING TO DELETE: Meet Now' }
-    }
-},
-@{
-    n = 'Remove Microsoft Edge'
-    a = {
-        $path = "${env:ProgramFiles(x86)}\Microsoft\Edge\Application"
-        if (Test-Path $path) {
-            $exe = Get-ChildItem "$path\*\Installer\setup.exe" -Recurse -ErrorAction SilentlyContinue
-            if ($exe) {
-                foreach ($e in $exe) {
-                    Start-Process $e.FullName "--uninstall --force-uninstall --system-level" -Wait
+    },
+    
+
+    @{
+        Name = "Remove OneDrive"
+        Category = "App Management"
+        Action = {
+            try {
+                $onedrive = Get-Process onedrive -ErrorAction SilentlyContinue
+                if ($onedrive) { $onedrive | Stop-Process -Force }
+                
+                $path = "$env:SYSTEMROOT\SysWOW64\OneDriveSetup.exe"
+                if (Test-Path $path) {
+                    Start-Process $path -ArgumentList "/uninstall" -NoNewWindow -Wait
                 }
-                Red 'Edge removed'
-            } else { Red 'Edge uninstaller not found' }
-        } else { Red 'NOTHING TO DELETE: Edge' }
-    }
-},
-@{
-    n = 'Disable Widgets'
-    a = {
-        $reg="HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-        try {
-            Set-ItemProperty -Path $reg -Name TaskbarDa -Value 0 -ErrorAction SilentlyContinue
-            Red 'Widgets disabled'
-        } catch { Red 'NOTHING TO DISABLE: Widgets' }
-    }
-},
-@{
-    n = 'Remove OneNote'
-    a = {
-        $p=Get-AppxPackage -Name 'Microsoft.Office.OneNote' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'OneNote removed'
+                
+                Get-AppxPackage "*OneDrive*" | Remove-AppxPackage
+                Log "Removed OneDrive"
+            } catch { Log "Error removing OneDrive: $_" "ERROR" }
         }
-        else { Red 'NOTHING TO DELETE: OneNote' }
-    }
-},
-@{
-    n = 'Remove Bing News'
-    a = {
-        $p=Get-AppxPackage -Name 'Microsoft.BingNews' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Bing News removed'
+    },
+    
+    @{
+        Name = "Remove Bloatware Apps"
+        Category = "App Management"
+        Action = {
+            $apps = @(
+                "Microsoft.BingNews", "Microsoft.GetHelp", "Microsoft.Getstarted",
+                "Microsoft.MicrosoftOfficeHub", "Microsoft.MicrosoftSolitaireCollection",
+                "Microsoft.People", "Microsoft.SkypeApp", "Microsoft.WindowsAlarms",
+                "Microsoft.WindowsCamera", "Microsoft.WindowsMaps", "Microsoft.WindowsSoundRecorder",
+                "Microsoft.XboxApp", "Microsoft.XboxGameOverlay", "Microsoft.XboxIdentityProvider",
+                "Microsoft.YourPhone", "Microsoft.ZuneMusic", "Microsoft.ZuneVideo"
+            )
+            
+            foreach ($app in $apps) {
+                try {
+                    Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage
+                    Get-AppxProvisionedPackage -Online | 
+                        Where-Object DisplayName -Like $app | 
+                        Remove-AppxProvisionedPackage -Online
+                    Log "Removed: $app"
+                } catch { Log "Error removing $app: $_" "ERROR" }
+            }
         }
-        else { Red 'NOTHING TO DELETE: Bing News' }
-    }
-},
-@{
-    n = 'Remove To Do'
-    a = {
-        $p=Get-AppxPackage -Name 'Microsoft.Todos' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'To Do removed'
+    },
+    
+
+    @{
+        Name = "Clean Temporary Files"
+        Category = "Disk Cleanup"
+        Action = {
+            try {
+                Get-ChildItem $env:TEMP, ${env:windir}\Temp -Recurse -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+                CleanMgr /sagerun:1 | Out-Null
+                Log "Cleaned temporary files"
+            } catch { Log "Error cleaning temp files: $_" "ERROR" }
         }
-        else { Red 'NOTHING TO DELETE: To Do' }
-    }
-},
-@{
-    n = 'Remove Weather Widgets'
-    a = {
-        $p=Get-AppxPackage -Name 'Microsoft.BingWeather' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Weather Widgets removed'
+    },
+    
+    @{
+        Name = "Clear System Cache"
+        Category = "Disk Cleanup"
+        Action = {
+            try {
+                ipconfig /flushdns | Out-Null
+                DISM /Online /Cleanup-Image /StartComponentCleanup | Out-Null
+                Log "Cleared system cache"
+            } catch { Log "Error clearing cache: $_" "ERROR" }
         }
-        else { Red 'NOTHING TO DELETE: Weather Widgets' }
-    }
-},
-@{
-    n = 'Remove Messaging'
-    a = {
-        $p=Get-AppxPackage -Name 'Microsoft.Messaging' -ErrorAction SilentlyContinue
-        if ($p) {
-            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
-            Red 'Messaging removed'
+    },
+    
+   
+    @{
+        Name = "Optimize Network Settings"
+        Category = "Network"
+        Action = {
+            try {
+                Set-NetTCPSetting -InternetCustom -CongestionProvider Cubic
+                Set-DnsClientGlobalSetting -SuffixSearchList @("")
+                Log "Optimized network settings"
+            } catch { Log "Error optimizing network: $_" "ERROR" }
         }
-        else { Red 'NOTHING TO DELETE: Messaging' }
+    },
+    
+
+    @{
+        Name = "Disable Animations"
+        Category = "UI Tweaks"
+        Action = {
+            try {
+                $regPath = "HKCU:\Control Panel\Desktop\WindowMetrics"
+                Set-ItemProperty -Path $regPath -Name "MinAnimate" -Value 0
+                
+                $SystemParametersInfo::SystemParametersInfo(0x0049, 0, 0, 2) | Out-Null  # SPI_SETANIMATION
+                Log "Disabled animations"
+            } catch { Log "Error disabling animations: $_" "ERROR" }
+        }
     }
-}
 )
 
-do {
-    Red "Type a number to run a tweak, or type part of a tweak name to search."
-    for ($i=0; $i -lt $tweaks.Count; $i++) { Red "$($i+1). $($tweaks[$i].n)" }
-    Red "0. All tweaks"
-    Red "-1. Exit"
-    $input = Read-Host "Choose a tweak (number, keyword, -1=exit)"
 
-    if ($input -eq '-1') { break }
-    elseif ($input -eq '0') { foreach ($t in $tweaks) { & $t.a } }
-    elseif ($input -match '^\d+$' -and [int]$input -gt 0 -and [int]$input -le $tweaks.Count) {
-        & $tweaks[[int]$input-1].a
+function Show-MainMenu {
+    Show-Header
+    Write-Host "CATEGORIES:" -ForegroundColor Cyan
+    $categories = $tweaks.Category | Select-Object -Unique
+    for ($i = 0; $i -lt $categories.Count; $i++) {
+        Write-Host "$($i+1). $($categories[$i])"
     }
-    else {
-   
-        $matches = @()
-        for ($i=0; $i -lt $tweaks.Count; $i++) {
-            if ($tweaks[$i].n -like "*$input*") { $matches += [PSCustomObject]@{ Index = $i+1; Name = $tweaks[$i].n } }
+    
+    Write-Host "`nACTIONS:" -ForegroundColor Cyan
+    Write-Host "C. Run All Tweaks"
+    Write-Host "R. Restore System"
+    Write-Host "L. View Logs"
+    Write-Host "X. Exit"
+    
+    $choice = Read-Host "`nSelect an option"
+    return $choice
+}
+
+
+function Invoke-Tweak($tweak) {
+    Show-Header
+    Write-Host "Executing: $($tweak.Name)" -ForegroundColor Yellow
+    Write-Host "Category: $($tweak.Category)" -ForegroundColor Yellow
+    Write-Host "-" * 80
+    
+    try {
+        & $tweak.Action
+        Write-Host "`nSUCCESS: Operation completed" -ForegroundColor Green
+        Log "Executed: $($tweak.Name)" "SUCCESS"
+    } catch {
+        Write-Host "`nERROR: $($_.Exception.Message)" -ForegroundColor Red
+        Log "Failed: $($tweak.Name) - $($_.Exception.Message)" "ERROR"
+    }
+    
+    Read-Host "`nPress Enter to continue..."
+}
+
+
+function Restore-System {
+    Show-Header
+    Write-Host "SYSTEM RESTORE OPTIONS" -ForegroundColor Cyan
+    Write-Host "1. Restore from registry backups"
+    Write-Host "2. Reset Windows Update components"
+    Write-Host "3. Restore default services"
+    Write-Host "4. Back to main menu"
+    
+    switch (Read-Host "`nSelect restore option") {
+        "1" {
+            if (Test-Path $backupDir) {
+                Get-ChildItem $backupDir -Filter *.reg | ForEach-Object {
+                    Write-Host "Restoring $_..."
+                    reg import $_.FullName 2>&1 | Out-Null
+                }
+                Write-Host "Registry restored" -ForegroundColor Green
+            } else {
+                Write-Host "No backups found" -ForegroundColor Yellow
+            }
         }
-        if ($matches.Count -eq 0) { Red "No tweaks found matching '$input'." }
-        else {
-            Red "Matches:"
-            $matches | ForEach-Object { Red "$($_.Index). $($_.Name)" }
+        "2" {
+            try {
+                Stop-Service wuauserv -Force
+                Remove-Item "$env:SYSTEMROOT\SoftwareDistribution\*" -Recurse -Force
+                Start-Service wuauserv
+                Write-Host "Windows Update reset" -ForegroundColor Green
+            } catch { Write-Host "Error resetting update: $_" -ForegroundColor Red }
+        }
+        "3" {
+            try {
+                Get-Service | Where-Object StartType -eq "Disabled" | Set-Service -StartupType Automatic
+                Write-Host "Services restored to default" -ForegroundColor Green
+            } catch { Write-Host "Error restoring services: $_" -ForegroundColor Red }
         }
     }
-    Pause
-} while ($true)
+    if ($_ -ne "4") { Read-Host "`nPress Enter to continue..." }
+}
+
+
+try {
+    Show-BinaryAnimation
+    while ($true) {
+        $choice = Show-MainMenu
+        
+        switch -Regex ($choice) {
+            "^\d+$" {
+                $index = [int]$choice - 1
+                $category = ($tweaks.Category | Select-Object -Unique)[$index]
+                $categoryTweaks = $tweaks | Where-Object { $_.Category -eq $category }
+                
+                Show-Header
+                Write-Host "$category TWEAKS:" -ForegroundColor Cyan
+                for ($i = 0; $i -lt $categoryTweaks.Count; $i++) {
+                    Write-Host "$($i+1). $($categoryTweaks[$i].Name)"
+                }
+                Write-Host "0. Back"
+                
+                $tweakChoice = Read-Host "`nSelect tweak"
+                if ($tweakChoice -ne "0") {
+                    $tweakIndex = [int]$tweakChoice - 1
+                    if ($tweakIndex -ge 0 -and $tweakIndex -lt $categoryTweaks.Count) {
+                        if (Confirm-Action "Run $($categoryTweaks[$tweakIndex].Name)") {
+                            Invoke-Tweak $categoryTweaks[$tweakIndex]
+                        }
+                    }
+                }
+            }
+            "C" {
+                if (Confirm-Action "Run ALL tweaks") {
+                    foreach ($tweak in $tweaks) {
+                        Invoke-Tweak $tweak
+                    }
+                }
+            }
+            "R" { Restore-System }
+            "L" { Start-Process notepad.exe $logPath }
+            "X" { exit }
+        }
+    }
+} catch {
+    Write-Host "Critical error: $_" -ForegroundColor Red
+    Log "CRITICAL: $_" "ERROR"
+    Read-Host "Press Enter to exit"
+    exit 1
+}
