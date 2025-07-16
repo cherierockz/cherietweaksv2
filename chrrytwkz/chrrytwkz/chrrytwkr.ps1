@@ -241,8 +241,10 @@ $tweaks = @(
                         Set-Service $svc -StartupType Disabled
                         Log "Disabled service: $svc"
                     }
-                } catch { Log "Error disabling $svc: $_" "ERROR" }
-            }
+} catch {
+    Log-Message "Error disabling $svc: $($_.Exception.Message)" "ERROR"
+}
+
             
             $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
             if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
