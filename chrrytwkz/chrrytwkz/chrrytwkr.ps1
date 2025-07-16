@@ -14,9 +14,12 @@ $themes = @{
     'Midnight'   = @{ Primary='Cyan'; Accent='DarkBlue' }
 }
 $global:CurrentTheme = 'Blood Moon'
+
 $global:CurrentColor = $themes[$CurrentTheme]
 $Host.UI.RawUI.ForegroundColor = ${global:CurrentColor}.Primary
-$global:PerformanceMode = $false
+=======
+$Host.UI.RawUI.ForegroundColor = $themes[$CurrentTheme].Primary
+
 
 # P/Invoke declaration for animation disable
 $Signature = @"
@@ -45,9 +48,11 @@ try {
 catch { Write-Host "Initialization error: $_" -ForegroundColor Red }
 
 
+
 function Show-Header {
     Clear-Host
     $color = ${global:CurrentColor}.Primary
+
     Write-Host ""
     Write-Host "_________   ___ ________________________.___________________________      _____________   _____   ____  __.  _________ ____   ____________  " -ForegroundColor $color
     Write-Host "\_   ___ \ /   |   \_   _____/\______   \   \_   _____/\__    ___/  \    /  \_   _____/  /  _  \ |    |/ _| /   _____/ \   \ /   /\_____  \ " -ForegroundColor $color
@@ -81,7 +86,9 @@ function Show-BinaryAnimation {
 }
 
 function Show-AsciiLogo {
+
     $accent = ${global:CurrentColor}.Primary
+
     $logo = @'
      _____           _______                   _____                    _____                    _____                    _____                    _____          
      /\    \         /::\    \                 /\    \                  /\    \                  /\    \                  /\    \                  /\    \         
@@ -125,16 +132,19 @@ function Confirm-Action($action) {
 }
 
 function Select-ColorTheme {
+
     Write-Host "AVAILABLE THEMES:" -ForegroundColor ${global:CurrentColor}.Primary
     $i = 1
     foreach ($t in $themes.Keys) {
         Write-Host "$i. $t" -ForegroundColor ${global:CurrentColor}.Primary
+
         $i++
     }
     $selection = Read-Host "Select theme number"
     $index = [int]$selection - 1
     if ($index -ge 0 -and $index -lt $themes.Keys.Count) {
         $global:CurrentTheme = $themes.Keys[$index]
+
         $global:CurrentColor = $themes[$global:CurrentTheme]
         $Host.UI.RawUI.ForegroundColor = ${global:CurrentColor}.Primary
     }
@@ -148,6 +158,7 @@ function Set-PerformanceMode {
     } else {
         powercfg /setactive SCHEME_BALANCED
         Write-Host "Performance Mode OFF" -ForegroundColor ${global:CurrentColor}.Primary
+
     }
     Log "Performance Mode: $PerformanceMode"
 }
@@ -173,7 +184,10 @@ function Optimize-SSD {
     Log 'SSD Optimized'
 }
 
+
 function Clear-RAM {
+
+
     $tool = Join-Path $PSScriptRoot 'EmptyStandbyList.exe'
     if (Test-Path $tool) { & $tool workingsets }
     [System.GC]::Collect()
@@ -199,7 +213,9 @@ $tweaks = @(
     @{
         Name = "Toggle Performance Mode"
         Category = "Performance Tweaks"
+
         Action = { Set-PerformanceMode }
+
     },
     @{
         Name = "Turbo Mode"
@@ -222,7 +238,9 @@ $tweaks = @(
     @{
         Name = "RAM Cleaner"
         Category = "System Tools"
+
         Action = { Clear-RAM }
+
     },
 
     @{
