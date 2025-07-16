@@ -229,28 +229,50 @@ $tweaks = @(
         Action = { Invoke-SpyBlocker }
     },
     
-    @{
-        Name = "Disable Telemetry Services"
-        Category = "System Performance"
-        Action = {
-            $services = @("DiagTrack", "dmwappushservice", "DPS")
-            foreach ($svc in $services) {
-                try {
-                    if ((Get-Service $svc -ErrorAction SilentlyContinue).Status -ne 'Stopped') {
-                        Stop-Service $svc -Force
-                        Set-Service $svc -StartupType Disabled
-                        Log "Disabled service: $svc"
-                    }
-} catch {
-    Log-Message "Error disabling $svc: $($_.Exception.Message)" "ERROR"
+@{
+    Name = "Disable Telemetry Services"
+    Category = "System Performance"
+    Action = {
+        $services = @("DiagTrack", "dmwappushservice", "DPS")
+        foreach ($svc in $services) {
+            try {
+                if ((Get-Service $svc -ErrorAction SilentlyContinue).Status -ne 'Stopped') {
+                    Stop-Service $svc -Force
+                    Set-Service $svc -StartupType Disabled
+                    Log-Message "Disabled service: $svc"
+                } else {
+                    Log-Message "Service $svc already stopped"
+                }
+            } catch {
+            
+                foreach ($svc in $services) {
+    try {
+        # ...
+    } catch {
+  $err = $_.Exception.Message
+Log-Message "Error disabling $($svc): $($_.Exception.Message)" "ERROR"
+
+
+
+    }
 }
 
-            
+            }
+        }
+    }
+}
+
+    @{
+        Name = "Disable Windows Telemetry"
+        Category = "Privacy"
+        Action = {
             $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
             if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
-            Set-ItemProperty -Path $regPath -Name "AllowTelemetry" -Value 0 -Type DWord
+            Set-ItemProperty -Path $regPath -Name "AllowTelemetry" -Value 0
         }
     },
+
+
     
     @{
         Name = "Optimize Power Plan"
@@ -326,10 +348,49 @@ $tweaks = @(
                         Where-Object DisplayName -Like $app | 
                         Remove-AppxProvisionedPackage -Online
                     Log "Removed: $app"
-                } catch { Log "Error removing $app: $_" "ERROR" }
+             } catch {
+@{
+    Name = "Remove Bloatware"
+    Category = "System Maintenance"
+    Action = {
+        $bloatApps = @(
+            "Microsoft.BingNews",
+            "Microsoft.BingWeather",
+            "Microsoft.GetHelp",
+            "Microsoft.Getstarted",
+            "Microsoft.Microsoft3DViewer",
+            "Microsoft.MicrosoftOfficeHub",
+            "Microsoft.MicrosoftSolitaireCollection",
+            "Microsoft.MSPaint",
+            "Microsoft.People",
+            "Microsoft.SkypeApp",
+            "Microsoft.WindowsAlarms",
+            "Microsoft.WindowsCamera",
+            "Microsoft.WindowsMaps",
+            "Microsoft.WindowsSoundRecorder",
+            "Microsoft.XboxApp",
+            "Microsoft.XboxGameOverlay",
+            "Microsoft.XboxIdentityProvider",
+            "Microsoft.YourPhone",
+            "Microsoft.ZuneMusic",
+            "Microsoft.ZuneVideo"
+            
+        )
+        foreach ($app in $bloatApps) {
+            try {
+                Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -ErrorAction SilentlyContinue
+                Get-AppxProvisionedPackage -Online | Where-Object DisplayName -eq $app | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
+                Log-Message "Removed $app"
+            } catch {
+                Log-Message ("Error removing $($app): $($_.Exception.Message)") "ERROR"
             }
         }
-    },
+    }
+}
+                }
+            }
+        }
+    }, 
     
 
     @{
