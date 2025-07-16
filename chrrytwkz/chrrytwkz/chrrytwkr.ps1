@@ -6,6 +6,17 @@ $logPath = "$env:ProgramData\CherieTweaker.log"
 $backupDir = "$env:ProgramData\CherieTweaker\Backups"
 $animationDuration = 3
 
+# Color Themes
+$themes = @{
+    'Blood Moon' = @{ Primary='Red'; Accent='DarkRed' }
+    'Cyberpunk'  = @{ Primary='Magenta'; Accent='Yellow' }
+    'Matrix'     = @{ Primary='Green'; Accent='DarkGreen' }
+    'Midnight'   = @{ Primary='Cyan'; Accent='DarkBlue' }
+}
+$global:CurrentTheme = 'Blood Moon'
+$Host.UI.RawUI.ForegroundColor = $themes[$CurrentTheme].Primary
+$global:PerformanceMode = $false
+
 # P/Invoke declaration for animation disable
 $Signature = @"
 [DllImport("user32.dll", EntryPoint = "SystemParametersInfo")]
@@ -35,17 +46,18 @@ catch { Write-Host "Initialization error: $_" -ForegroundColor Red }
 
 function Show-Header {
     Clear-Host
+    $color = $themes[$CurrentTheme].Primary
     Write-Host ""
-    Write-Host "_________   ___ ________________________.___________________________      _____________   _____   ____  __.  _________ ____   ____________  " -ForegroundColor Red
-    Write-Host "\_   ___ \ /   |   \_   _____/\______   \   \_   _____/\__    ___/  \    /  \_   _____/  /  _  \ |    |/ _| /   _____/ \   \ /   /\_____  \ " -ForegroundColor Red
-    Write-Host "/    \  \//    ~    \    __)_  |       _/   ||    __)_   |    |  \   \/\/   /|    __)_  /  /_\  \|      <   \_____  \   \   Y   /  /  ____/ " -ForegroundColor Red
-    Write-Host "\     \___\    Y    /        \ |    |   \   ||        \  |    |   \        / |        \/    |    \    |  \  /        \   \     /  /       \ " -ForegroundColor Red
-    Write-Host " \______  /\___|_  /_______  / |____|_  /___/_______  /  |____|    \__/\  / /_______  /\____|__  /____|__ \/_______  /    \___/   \_______ \" -ForegroundColor Red
-    Write-Host "        \/       \/        \/         \/            \/                  \/          \/         \/        \/        \/                     \/" -ForegroundColor Red
+    Write-Host "_________   ___ ________________________.___________________________      _____________   _____   ____  __.  _________ ____   ____________  " -ForegroundColor $color
+    Write-Host "\_   ___ \ /   |   \_   _____/\______   \   \_   _____/\__    ___/  \    /  \_   _____/  /  _  \ |    |/ _| /   _____/ \   \ /   /\_____  \ " -ForegroundColor $color
+    Write-Host "/    \  \//    ~    \    __)_  |       _/   ||    __)_   |    |  \   \/\/   /|    __)_  /  /_\  \|      <   \_____  \   \   Y   /  /  ____/ " -ForegroundColor $color
+    Write-Host "\     \___\    Y    /        \ |    |   \   ||        \  |    |   \        / |        \/    |    \    |  \  /        \   \     /  /       \ " -ForegroundColor $color
+    Write-Host " \______  /\___|_  /_______  / |____|_  /___/_______  /  |____|    \__/\  / /_______  /\____|__  /____|__ \/_______  /    \___/   \_______ \" -ForegroundColor $color
+    Write-Host "        \/       \/        \/         \/            \/                  \/          \/         \/        \/        \/                     \/" -ForegroundColor $color
     Write-Host ""
-    Write-Host "CHERIETWEAKER V2.1 - SYSTEM OPTIMIZATION SUITE" -ForegroundColor Red
-    Write-Host "DEVELOPED BY CHERIEROCKZ | $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Red
-    Write-Host "================================================================================" -ForegroundColor Red
+    Write-Host "CHERIETWEAKER V2.1 - SYSTEM OPTIMIZATION SUITE" -ForegroundColor $color
+    Write-Host "DEVELOPED BY CHERIEROCKZ | $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor $color
+    Write-Host "================================================================================" -ForegroundColor $color
     Write-Host ""
 }
 
@@ -67,6 +79,35 @@ function Show-BinaryAnimation {
     Clear-Host
 }
 
+function Show-AsciiLogo {
+    $accent = $themes[$CurrentTheme].Primary
+    $logo = @'
+     _____           _______                   _____                    _____                    _____                    _____                    _____          
+     /\    \         /::\    \                 /\    \                  /\    \                  /\    \                  /\    \                  /\    \         
+    /::\____\       /::::\    \               /::\    \                /::\    \                /::\    \                /::\____\                /::\    \        
+   /:::/    /      /::::::\    \             /::::\    \              /::::\    \               \:::\    \              /::::|   |               /::::\    \       
+  /:::/    /      /::::::::\    \           /::::::\    \            /::::::\    \               \:::\    \            /:::::|   |              /::::::\    \      
+ /:::/    /      /:::/  \:::\    \         /:::/\:::\    \          /:::/\:::\    \                \:::\    \          /::::::|   |             /:::/\:::\    \     
+/:::/    /      /:::/    \:::\    \       /:::/__\:::\    \        /:::/  \:::\    \               \:::\    \        /:::/|::|   |            /:::/  \:::\    \    
+/:::/    /      /:::/    / \:::\    \     /::::\   \:::\    \      /:::/    \:::\    \              /::::\    \      /:::/ |::|   |           /:::/    \:::\    \   
+/:::/    /      /:::/____/   \:::\____\   /::::::\   \:::\    \    /:::/    / \:::\    \    ____    /::::::\    \    /:::/  |::|   | _____    /:::/    / \:::\    \  
+/:::/    /      |:::|    |    |:::|    | /:::/\:::\   \:::\    \  /:::/    /   \:::\ ___\  /\   \  /:::/\:::\    \  /:::/   |::|   |/\    \  /:::/    /   \:::\ ___\ 
+/:::/____/       |:::|____|    |:::|    |/:::/  \:::\   \:::\____\/:::/____/     \:::|    |/::\   \/:::/  \:::\____\/:: /    |::|   /::\____\/:::/____/  ___\:::|    |
+\:::\    \        \:::\    \  /:::/    / \::/    \:::\  /:::/    /\:::\    \     /:::|____|\:::\  /:::/    \::/    /\::/    /|::|  /:::/    /\:::\    \ /\  /:::|____|
+ \:::\    \        \:::\    \/:::/    /   \/____/ \:::\/:::/    /  \:::\    \   /:::/    /  \:::\/:::/    / \/____/  \/____/ |::| /:::/    /  \:::\    /::\ \::/    / 
+  \:::\    \        \:::\    /:::/    /             \::::::/    /    \:::\    \ /:::/    /    \::::::/    /                   |::|/:::/    /    \:::\   \:::\ \/____/  
+   \:::\    \        \:::\__/:::/    /               \::::/    /      \:::\    /:::/    /      \::::/____/                    |::::::/    /      \:::\   \:::\____\    
+    \:::\    \        \::::::::/    /                /:::/    /        \:::\  /:::/    /        \:::\    \                    |:::::/    /        \:::\  /:::/    /    
+     \:::\    \        \::::::/    /                /:::/    /          \:::/:::/    /          \:::\    \                   |::::/    /          \:::/:::/    /     
+      \:::\    \        \::::/    /                /:::/    /            \::::::/    /            \:::\    \                  /:::/    /            \::::::/    /      
+       \:::\____\        \::/____/                /:::/    /              \::::/    /              \:::\____\                /:::/    /              \::::/    /       
+        \::/    /                                 \::/    /                \::/____/                \::/    /                \::/    /                \::/____/        
+         \/____/                                   \/____/                                           \/____/                  \/____/                                   
+'@
+    $logo.Split("`n") | ForEach-Object { Write-Host $_ -ForegroundColor $accent }
+    Start-Sleep -Seconds 2
+}
+
 
 function Backup-Registry([string]$path) {
     $regPath = $path -replace "^HKLM:\\", "HKEY_LOCAL_MACHINE\" `
@@ -82,8 +123,111 @@ function Confirm-Action($action) {
     return $choice -in 'Y','y'
 }
 
+function Select-ColorTheme {
+    Write-Host "AVAILABLE THEMES:" -ForegroundColor $themes[$CurrentTheme].Primary
+    $i = 1
+    foreach ($t in $themes.Keys) {
+        Write-Host "$i. $t" -ForegroundColor $themes[$CurrentTheme].Primary
+        $i++
+    }
+    $selection = Read-Host "Select theme number"
+    $index = [int]$selection - 1
+    if ($index -ge 0 -and $index -lt $themes.Keys.Count) {
+        $global:CurrentTheme = $themes.Keys[$index]
+        $Host.UI.RawUI.ForegroundColor = $themes[$CurrentTheme].Primary
+    }
+}
+
+function Toggle-PerformanceMode {
+    $global:PerformanceMode = -not $global:PerformanceMode
+    if ($PerformanceMode) {
+        powercfg /setactive SCHEME_MIN
+        Write-Host "Performance Mode ON" -ForegroundColor $themes[$CurrentTheme].Primary
+    } else {
+        powercfg /setactive SCHEME_BALANCED
+        Write-Host "Performance Mode OFF" -ForegroundColor $themes[$CurrentTheme].Primary
+    }
+    Log "Performance Mode: $PerformanceMode"
+}
+
+function Start-TurboMode {
+    Get-AppxPackage | Where-Object {$_.IsFramework -ne $true} | ForEach-Object { Stop-Process -Id $_.PackageFullName -ErrorAction SilentlyContinue }
+    $services = 'SysMain','WSearch'
+    foreach ($s in $services) { Stop-Service $s -ErrorAction SilentlyContinue; Set-Service $s -StartupType Disabled }
+    Log 'Turbo Mode executed'
+}
+
+function Enable-GameMode {
+    Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path 'HKCU:\Software\Microsoft\GameBar' -Name 'AllowAutoGameMode' -Value 1 -Type DWord
+    Log 'Game Mode enabled'
+}
+
+function Optimize-SSD {
+    Stop-Service SysMain -ErrorAction SilentlyContinue
+    Set-Service SysMain -StartupType Disabled
+    defrag C: /L | Out-Null
+    powercfg /h off
+    Log 'SSD Optimized'
+}
+
+function Clean-RAM {
+    $tool = Join-Path $PSScriptRoot 'EmptyStandbyList.exe'
+    if (Test-Path $tool) { & $tool workingsets }
+    [System.GC]::Collect()
+    Log 'RAM cleaned'
+}
+
+function Invoke-SpyBlocker {
+    Add-Content -Path "$env:windir\System32\drivers\etc\hosts" -Value "0.0.0.0 telemetry.microsoft.com"
+    Stop-Service DiagTrack -ErrorAction SilentlyContinue
+    Set-Service DiagTrack -StartupType Disabled
+    Log 'SpyBlocker applied'
+}
+
 
 $tweaks = @(
+
+    @{
+        Name = "Change Color Theme"
+        Category = "Settings"
+        Action = { Select-ColorTheme }
+    },
+
+    @{
+        Name = "Toggle Performance Mode"
+        Category = "Performance Tweaks"
+        Action = { Toggle-PerformanceMode }
+    },
+    @{
+        Name = "Turbo Mode"
+        Category = "Performance Tweaks"
+        Action = { Start-TurboMode }
+    },
+
+    @{
+        Name = "Game Mode"
+        Category = "Performance Tweaks"
+        Action = { Enable-GameMode }
+    },
+
+    @{
+        Name = "SSD Optimizer"
+        Category = "Maintenance"
+        Action = { Optimize-SSD }
+    },
+
+    @{
+        Name = "RAM Cleaner"
+        Category = "System Tools"
+        Action = { Clean-RAM }
+    },
+
+    @{
+        Name = "SpyBlocker"
+        Category = "Privacy & Security"
+        Action = { Invoke-SpyBlocker }
+    },
     
     @{
         Name = "Disable Telemetry Services"
@@ -319,6 +463,7 @@ function Restore-System {
 
 try {
     Show-BinaryAnimation
+    Show-AsciiLogo
     while ($true) {
         $choice = Show-MainMenu
         
